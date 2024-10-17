@@ -1,5 +1,7 @@
 import Parser from 'rss-parser'; // RSS parser library that turns RSS XML feeds into JS objects
 import { promises as fs } from 'fs';
+import 'dotenv/config';
+import sgMail from '@sendgrid/mail';
 
 // Fetch RSS feeds from given URLs
 export async function fetchRSSFeeds(urls: string[]): Promise<string[]> {
@@ -102,7 +104,7 @@ export async function extractKeywords(contents: string[]): Promise<string[]> {
   return topWords;
 }
 
-// Create a file (e.g., via email or webhook)
+// Create a file
 export async function generateFile(keywords: string[]): Promise<any> {
   const report = `Top Keywords: ${keywords.join(', ')}`;
 
@@ -113,4 +115,25 @@ export async function generateFile(keywords: string[]): Promise<any> {
   } catch (error) {
     console.error('Error saving report:', error);
   }
+}
+
+// Send an email report
+export async function sendReportByEmail(keywords: string[]): Promise<any> {
+  sgMail.setApiKey(process.env.SENDGRID_API_KEY || "");
+  const keywordString = keywords.join(", ");
+  const msg = {
+    to: 'angela.zhou@temporal.io',
+    from: 'temporal.hackathon@gmail.com',
+    subject: 'Most Common Words from RSS Feed',
+    text: `The most common keywords from October's NPR and Yahoo News RSS Feeds are: ${keywordString}`, // Include keywords in text
+    html: `<strong>The most common keywords from October's NPR and Yahoo News RSS Feeds are:</strong> ${keywordString}`, // Include keywords in HTML
+  }
+  sgMail
+  .send(msg)
+  .then(() => {
+    console.log(`Report sent to ${msg.to}`)
+  })
+  .catch((error) => {
+    console.error(error)
+  })
 }
