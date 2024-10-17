@@ -14,8 +14,8 @@ export async function summarizeRSSFeed(urls: string[]): Promise<string> {
   const keywords = await extractKeywords(contents);
 
   // Step 3 Option 1: Create a summary file
-  // await generateFile(keywords);
+  await generateFile(keywords);
   // Step 3 Option 2: Send an email
-  await sendReportByEmail(keywords);
+  // await sendReportByEmail(keywords);
   return 'Report generated';
 }

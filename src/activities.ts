@@ -2,6 +2,7 @@ import Parser from 'rss-parser'; // RSS parser library that turns RSS XML feeds 
 import { promises as fs } from 'fs';
 import 'dotenv/config';
 import sgMail from '@sendgrid/mail';
+import OpenAI from 'openai';
 
 // Fetch RSS feeds from given URLs
 export async function fetchRSSFeeds(urls: string[]): Promise<string[]> {
@@ -42,6 +43,27 @@ export async function fetchRSSFeeds(urls: string[]): Promise<string[]> {
   return titles;
 }
 
+async function generateSummary(topWords: string[]): Promise<string> {
+  const openai = new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY,
+  });
+  
+  const prompt = `Summarize the following top keywords from recent RSS feeds: ${topWords.join(', ')}.`;
+
+  try {
+    const response = await openai.completions.create({
+      model: 'gpt-3.5-turbo',
+      prompt: prompt,
+      max_tokens: 100,
+      temperature: 0.7,
+    });
+    return response.choices[0].text.trim();
+  } catch (error) {
+    console.error('Error generating summary with OpenAI:', error);
+    return 'Could not generate summary.';
+  }
+}
+
 // Extract common keywords from the fetched content
 export async function extractKeywords(contents: string[]): Promise<string[]> {
   // Join all the content into a single string
@@ -51,19 +73,137 @@ export async function extractKeywords(contents: string[]): Promise<string[]> {
   const words = allText.split(' ');
 
   const stopWords = [
+    'i',
+    'me',
+    'my',
+    'myself',
+    'we',
+    'our',
+    'ours',
+    'ourselves',
+    'you',
+    'your',
+    'yours',
+    'yourself',
+    'yourselves',
+    'he',
+    'him',
+    'his',
+    'himself',
+    'she',
+    'her',
+    'hers',
+    'herself',
+    'it',
+    'its',
+    'itself',
+    'they',
+    'them',
+    'their',
+    'theirs',
+    'themselves',
+    'what',
+    'which',
+    'who',
+    'whom',
+    'this',
+    'that',
+    'these',
+    'those',
+    'am',
+    'is',
+    'are',
+    'was',
+    'were',
+    'be',
+    'been',
+    'being',
+    'have',
+    'has',
+    'had',
+    'having',
+    'do',
+    'does',
+    'did',
+    'doing',
+    'a',
+    'an',
     'the',
     'and',
-    'is',
-    'in',
-    'it',
-    'to',
+    'but',
+    'if',
+    'or',
+    'because',
+    'as',
+    'until',
+    'while',
     'of',
-    'a',
-    'on',
+    'at',
+    'by',
     'for',
     'with',
-    'by',
-    'at', 'that', 'could', 'says', 'said', 'can', 'as', 'but', 'he', 'him', 'she', 'her', 'it', 'was', 'be', 'after', 'before', 'over', 'from', 'say', 'said', 'will', 'can', 'more', 'his', 'hers', 'their', 'them' // Add more common stop words as needed
+    'about',
+    'against',
+    'between',
+    'into',
+    'through',
+    'during',
+    'before',
+    'after',
+    'above',
+    'below',
+    'to',
+    'from',
+    'up',
+    'down',
+    'in',
+    'out',
+    'on',
+    'off',
+    'over',
+    'under',
+    'again',
+    'further',
+    'then',
+    'once',
+    'here',
+    'there',
+    'when',
+    'where',
+    'why',
+    'how',
+    'all',
+    'any',
+    'both',
+    'each',
+    'few',
+    'more',
+    'most',
+    'other',
+    'some',
+    'such',
+    'no',
+    'nor',
+    'not',
+    'only',
+    'own',
+    'same',
+    'so',
+    'than',
+    'too',
+    'very',
+    's',
+    't',
+    'can',
+    'will',
+    'just',
+    'don',
+    'should',
+    'now',
+    'says',
+    'said',
+    'near',
+    'could',
   ];
 
   // An object to store word counts
@@ -106,8 +246,10 @@ export async function extractKeywords(contents: string[]): Promise<string[]> {
 
 // Create a file
 export async function generateFile(keywords: string[]): Promise<any> {
-  const report = `Top Keywords: ${keywords.join(', ')}`;
-
+  // BONUS: Generate summary or insights
+  const summary = await generateSummary(keywords);
+  const listOfKeywords = keywords.join(', ');
+  const report = `Top Keywords: ${keywords.join(', ')}. The summary of the keywords are the following: ${summary}`;
   try {
     // Write the report to a file called 'keyword-report.txt'
     await fs.writeFile('keyword-report.txt', report, 'utf-8');
@@ -119,21 +261,21 @@ export async function generateFile(keywords: string[]): Promise<any> {
 
 // Send an email report
 export async function sendReportByEmail(keywords: string[]): Promise<any> {
-  sgMail.setApiKey(process.env.SENDGRID_API_KEY || "");
-  const keywordString = keywords.join(", ");
+  sgMail.setApiKey(process.env.SENDGRID_API_KEY || '');
+  const keywordString = keywords.join(', ');
   const msg = {
     to: 'angela.zhou@temporal.io',
     from: 'temporal.hackathon@gmail.com',
     subject: 'Most Common Words from RSS Feed',
     text: `The most common keywords from October's NPR and Yahoo News RSS Feeds are: ${keywordString}`, // Include keywords in text
     html: `<strong>The most common keywords from October's NPR and Yahoo News RSS Feeds are:</strong> ${keywordString}`, // Include keywords in HTML
-  }
+  };
   sgMail
-  .send(msg)
-  .then(() => {
-    console.log(`Report sent to ${msg.to}`)
-  })
-  .catch((error) => {
-    console.error(error)
-  })
+    .send(msg)
+    .then(() => {
+      console.log(`Report sent to ${msg.to}`);
+    })
+    .catch((error) => {
+      console.error(error);
+    });
 }
